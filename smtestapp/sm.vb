@@ -4,10 +4,10 @@ Imports Microsoft.VisualBasic
 Imports System.IO
 Imports System.Net
 Imports System.Text
-
+'Example template
 <Serializable()> Public Class Script
-	Sub New()
-	End Sub
+    Sub New()
+    End Sub
     Shared Sub Main()
         Try
             FlowContext.SetResult(1)
