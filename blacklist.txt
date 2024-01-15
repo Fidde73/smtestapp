@@ -1,0 +1,39 @@
+Imports System
+Imports SMScriptBox
+Imports Microsoft.VisualBasic
+Imports System.Data.SqlClient
+Imports System.ComponentModel.Design
+
+'if CQC code with id 6 has been set the anumber is blacklisted for 30min 
+'input @@MediaLib.ANI, @MICCEDBSource
+'Bransh 1 ok
+'Bransh 2 blacklisted
+'Bransh 9 error
+<Serializable()> Public Class Script
+    Sub New()
+    End Sub
+
+    Shared Sub Main()
+
+        FlowContext.SetResult(1)
+        Try
+            Dim DBSource As SqlConnection = New SqlConnection(FlowContext.GetVariable("@MiCCEDBSource"))
+            Dim ds As Data.DataSet = New Data.DataSet()
+            Dim sANI As String = FlowContext.GetSystemVariable("@@MediaLib.ANI")
+            Dim sQuery As String = ""
+            sQuery = "select id from cdr_cn_" & Now.ToString("yyyyMMdd") & "_act where id in (select id from cdr_at_" & Now.ToString("yyyyMMdd") & "_act where activity_type = 12 and code = 6) and caller_num = '" & sANI & "' and time_stamp >= '" & Now.AddMinutes(-30).ToUniversalTime.ToString("yyyy-MM-dd HH:mm:ss", Globalization.CultureInfo.InvariantCulture) & "'"
+            FlowContext.Print("### SQL query " & sQuery.Substring(0, (sQuery.Length / 2)))
+            FlowContext.Print("### SQL query " & sQuery.Substring((sQuery.Length / 2) + 1))
+            Dim da As SqlDataAdapter = New SqlDataAdapter(sQuery, DBSource)
+            da.Fill(ds)
+            If ds.Tables(0).Rows.Count >= 1 Then
+                FlowContext.Print("### Match in CDR for ANI:" + sANI + " Number is blacklisted id: " + ds.Tables(0).Rows(0).Item(0).ToString)
+                FlowContext.SetResult(2)
+            End If
+
+        Catch ex As Exception
+            FlowContext.Print("### Error:" & ex.Message)
+            FlowContext.SetResult(9)
+        End Try
+    End Sub
+End Class

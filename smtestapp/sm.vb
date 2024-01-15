@@ -5,7 +5,6 @@ Imports System.IO
 Imports System.Net
 Imports System.Text
 
-
 <Serializable()> Public Class Script
 	Sub New()
 	End Sub

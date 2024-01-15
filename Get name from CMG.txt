@@ -1,0 +1,51 @@
+Imports System
+Imports SMScriptBox
+Imports Microsoft.VisualBasic
+Imports System.Data.SqlClient
+Imports System.ComponentModel.Design
+
+
+'Go to bransh 1 if name found 2 if name not found 9 on error
+'input @@MediaLib.ANI, @cmgDBSource
+'output @Name
+<Serializable()> Public Class Script
+    Sub New()
+    End Sub
+
+    Shared Sub Main()
+
+        FlowContext.SetResult(1)
+        Try
+            Dim DBSource As SqlConnection = New SqlConnection(FlowContext.GetVariable("@cmgDBSource"))
+            Dim ds As Data.DataSet = New Data.DataSet()
+            Dim sANI As String = FlowContext.GetSystemVariable("@@MediaLib.ANI")
+            Dim sQuery As String = ""
+            If sANI.Length <= 5 Then
+                sQuery = "SELECT f_name + ', ' + l_name FROM main where telno = '" + sANI + "'"
+            Else
+                'external number has accescode, remove first digit (start on second)
+                sANI = sANI.Substring(1)
+                sQuery = "SELECT f_name + ', ' + l_name FROM main where cordless = '" + sANI + "'"
+            End If
+
+            Dim da As SqlDataAdapter = New SqlDataAdapter(sQuery, DBSource)
+            da.Fill(ds)
+            If ds.Tables(0).Rows.Count = 1 Then
+                Dim sName As String = ds.Tables(0).Rows(0).Item(0)
+                FlowContext.Print("### Match in CMG for ANI:" + sANI + " Name: " + sName)
+                FlowContext.SetVariable("@Name", sName)
+            ElseIf ds.Tables(0).Rows.Count = 0 Then
+                FlowContext.Print("### No match in CMG for " + sQuery)
+                FlowContext.SetResult(2)
+            ElseIf ds.Tables(0).Rows.Count > 1 Then
+                FlowContext.Print("### Multiple matches in CMG for " + sQuery)
+                FlowContext.SetResult(2)
+            End If
+
+        Catch ex As Exception
+            FlowContext.Print("### Error:" & ex.Message)
+            FlowContext.SetResult(9)
+        End Try
+    End Sub
+
+End Class

@@ -1,0 +1,84 @@
+Imports System
+Imports SMScriptBox
+Imports Microsoft.VisualBasic
+Imports System.Data.SqlClient
+Imports System.Globalization
+
+
+'Go to bransh 1 output varible with @LastCall and @CallsToday which can be presented to the agent as IVR data
+
+<Serializable()> Public Class Script
+    Sub New()
+    End Sub
+
+    Shared Sub Main()
+
+        FlowContext.SetResult(1)
+        Try
+            Dim DBSource As SqlConnection = New SqlConnection(FlowContext.GetVariable("@MiCCEDBSource"))
+            Dim ds As Data.DataSet = New Data.DataSet()
+            Dim sAni As String = FlowContext.GetSystemVariable("@@MediaLib.ANI")
+            Dim sCallID As String = FlowContext.GetSystemVariable("@@MediaLib.CallID")
+            Dim sQuery As String
+            Dim sCDRdate As String = Now.ToString("yyyyMMdd")
+
+
+            sQuery = "Select ty.time_stamp,ty.type,ty.object_type,Case ty.object_type When 4096 Then u.logon_id When 1024 Then sa.name When 512 Then sg.name Else '' end as sname "
+            sQuery = sQuery + "FROM cdr_cn_" & sCDRdate & "_act as cn "
+            sQuery = sQuery + "inner Join cdr_ty_" & sCDRdate & "_act as ty on cn.id = ty.id "
+            sQuery = sQuery + "inner Join cc_user as u on ty.type_id = u.id "
+            sQuery = sQuery + "inner Join service_grp as sg on ty.type_id = sg.id "
+            sQuery = sQuery + "inner Join service_access as sa on ty.type_id = sa.id "
+            sQuery = sQuery + "where cn.caller_num = '" & sAni & "' and (ty.type = 4 or ty.type = 9 or ty.type = 13 or ty.type = 15) "
+            sQuery = sQuery + "order by cn.time_stamp asc, ty.arrive_seq asc "
+
+
+
+
+            Dim da As SqlDataAdapter = New SqlDataAdapter(sQuery, DBSource)
+            da.Fill(ds)
+            If ds.Tables(0).Rows.Count > 0 Then
+                Dim nAbb As Integer = 0
+                Dim nAnsw As Integer = 0
+                Dim nClose As Integer = 0
+                Dim sLastCallTime As Date
+                Dim sLastCallType As String = ""
+                Dim sLastAgent As String = ""
+                Dim sLastGroup As String = ""
+                For ix As Integer = 0 To ds.Tables(0).Rows.Count - 1
+                    sLastCallTime = ds.Tables(0).Rows(ix).Item(0)
+                    Select Case ds.Tables(0).Rows(ix).Item(1)
+                        Case 13 'complete
+                            If ds.Tables(0).Rows(ix).Item(2) = 1024 Then
+                                sLastCallType = "Closed"
+                                nClose = nClose + 1
+                            Else
+                                sLastCallType = "Answered by"
+                                nAnsw = nAnsw + 1
+                            End If
+
+                        Case 15 'abbandon
+                            sLastCallType = "Abbandon"
+                            nAbb = nAbb + 1
+                        Case 4 'sg
+                            sLastGroup = ds.Tables(0).Rows(ix).Item(3).ToString
+                        Case 9 'agent
+                            sLastAgent = ds.Tables(0).Rows(ix).Item(3).ToString
+                    End Select
+                Next
+
+                Dim tz As TimeZoneInfo = TimeZoneInfo.FindSystemTimeZoneById("W. Europe Standard Time")
+                sLastCallTime = TimeZoneInfo.ConvertTimeFromUtc(sLastCallTime, tz)
+                FlowContext.SetVariable("@LastCall", sLastCallTime.ToLocalTime.ToString + " " + sLastGroup + " " + sLastCallType + " " + sLastAgent)
+                FlowContext.SetVariable("@CallsToday", "Calls today: answ " + nAnsw.ToString + " abb " + nAbb.ToString + " close " + nClose.ToString)
+            Else
+                FlowContext.Print("### No calls from this user today")
+            End If
+
+        Catch ex As Exception
+            FlowContext.Print("### Error:" & ex.Message)
+            FlowContext.SetResult(9)
+        End Try
+    End Sub
+
+End Class
